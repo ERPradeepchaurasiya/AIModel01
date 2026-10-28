@@ -11,4 +11,11 @@
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.23" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="ModelTrainer\**" />
+    <Content Remove="ModelTrainer\**" />
+    <EmbeddedResource Remove="ModelTrainer\**" />
+    <None Remove="ModelTrainer\**" />
+  </ItemGroup>
+
 </Project>

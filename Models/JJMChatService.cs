@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.ML;
 using System;
 using System.IO;
@@ -12,52 +12,52 @@ namespace JJMModel.Services
         private ITransformer? _model;
         private PredictionEngine<JJMModel.Models.JJMInfo, JJMModel.Models.ModelOutput>? _predictionEngine;
         private readonly bool _modelLoaded;
+        private readonly string? _loadedModelPath;
 
-        // Accept IWebHostEnvironment via DI
         public JJMChatService(IWebHostEnvironment env)
         {
             _env = env ?? throw new ArgumentNullException(nameof(env));
-
             _mlContext = new MLContext();
 
-            string modelPath = Path.Combine(
-                _env.ContentRootPath,
-                "AImodel",
-                "jjm_up_model.zip"
-            );
+            string webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
 
-            if (File.Exists(modelPath))
+            // Candidate model paths in order of preference
+            string[] candidatePaths = new[]
             {
-                try
-                {
-                    _model = _mlContext.Model.Load(
-                        modelPath,
-                        out _
-                    );
+                Path.Combine(_env.ContentRootPath, "AImodel", "digitalgrowth_model.zip"),
+                Path.Combine(webRoot, "AImodel", "digitalgrowth_model.zip"),
+                Path.Combine(_env.ContentRootPath, "AImodel", "jjm_up_model.zip"),
+                Path.Combine(webRoot, "AImodel", "jjm_up_model.zip")
+            };
 
-                    _predictionEngine =
-                        _mlContext.Model.CreatePredictionEngine<JJMModel.Models.JJMInfo, JJMModel.Models.ModelOutput>(
-                            _model
-                        );
-
-                    _modelLoaded = true;
-                }
-                catch (Exception)
+            foreach (var candidate in candidatePaths)
+            {
+                if (File.Exists(candidate))
                 {
-                    // Loading failed - keep service available but mark model as not loaded
-                    _modelLoaded = false;
-                    _model = null;
-                    _predictionEngine = null;
+                    try
+                    {
+                        _model = _mlContext.Model.Load(candidate, out _);
+                        _predictionEngine = _mlContext.Model.CreatePredictionEngine<JJMModel.Models.JJMInfo, JJMModel.Models.ModelOutput>(_model);
+                        _modelLoaded = true;
+                        _loadedModelPath = candidate;
+                        break;
+                    }
+                    catch
+                    {
+                        // Continue checking next candidate
+                    }
                 }
             }
-            else
+
+            if (!_modelLoaded)
             {
-                // Model file not present at startup. Do not throw here so app can start.
-                _modelLoaded = false;
                 _model = null;
                 _predictionEngine = null;
             }
         }
+
+        public bool IsModelLoaded => _modelLoaded;
+        public string? LoadedModelPath => _loadedModelPath;
 
         public string Predict(string message)
         {
@@ -67,7 +67,7 @@ namespace JJMModel.Services
             if (!_modelLoaded || _predictionEngine == null)
             {
                 throw new InvalidOperationException(
-                    "ML model is not available. Ensure the model file 'AImodel/jjm_up_model.zip' exists in the application's content root."
+                    "ML model is not available. Please ensure 'digitalgrowth_model.zip' or 'jjm_up_model.zip' exists in 'AImodel' or 'wwwroot/AImodel'."
                 );
             }
 
