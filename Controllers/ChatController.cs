@@ -18,12 +18,12 @@ namespace JJMModel.Controllers
         {
             return View();
         }
-
         [HttpPost]
-        public JsonResult Chat(ChatRequest request)
+        public JsonResult Chat(string Message1)
         {
-            if (request == null ||
-                string.IsNullOrWhiteSpace(request.Message))
+            ChatRequest request = new ChatRequest();
+            request.Message = Message1;
+            if (request == null || string.IsNullOrWhiteSpace(request.Message))
             {
                 return Json(new
                 {
@@ -31,11 +31,9 @@ namespace JJMModel.Controllers
                     Message = "Message cannot be empty."
                 });
             }
-
             try
             {
-                string response =
-                    _chatService.Predict(request.Message);
+                string response = _chatService.Predict(request.Message);
 
                 response = FormatResponse(response);
 
@@ -60,8 +58,10 @@ namespace JJMModel.Controllers
             if (string.IsNullOrEmpty(raw))
                 return string.Empty;
 
-            var text =
-                System.Net.WebUtility.HtmlEncode(raw);
+            // Line breaks ko " | " me convert kar deta hai taaki multi-line text bhi format ho sake
+            raw = raw.Replace("\r\n", " | ").Replace("\n", " | ");
+
+            var text = System.Net.WebUtility.HtmlEncode(raw);
 
             // Convert URLs to clickable links
             text = System.Text.RegularExpressions.Regex.Replace(
@@ -72,46 +72,34 @@ namespace JJMModel.Controllers
 
             var parts = text.Split(
                 new[] { " | " },
-                System.StringSplitOptions.None);
+                System.StringSplitOptions.RemoveEmptyEntries);
 
-            if (parts.Length > 1)
+            var html = "<div class='formatted-response'>";
+
+            foreach (var part in parts)
             {
-                var html =
-                    "<div class='formatted-response'>";
+                string trimmedPart = part.Trim();
+                if (string.IsNullOrEmpty(trimmedPart)) continue;
 
-                foreach (var part in parts)
+                if (trimmedPart.StartsWith("Steps:", System.StringComparison.OrdinalIgnoreCase))
                 {
-                    if (part.StartsWith("Steps:"))
-                    {
-                        html +=
-                            "<div class='step-item'>" +
-                            "<strong>Steps:</strong> " +
-                            part.Substring(6).Trim() +
-                            "</div>";
-                    }
-                    else if (part.StartsWith("Official link:"))
-                    {
-                        html +=
-                            "<div class='link-item'>" +
-                            "<strong>Official Link:</strong> " +
-                            part.Substring(14).Trim() +
-                            "</div>";
-                    }
-                    else
-                    {
-                        html +=
-                            "<div class='info-item'>• " +
-                            part.Trim() +
-                            "</div>";
-                    }
+                    html += "<div class='step-item'><strong>Steps:</strong> " + trimmedPart.Substring(6).Trim() + "</div>";
                 }
-
-                html += "</div>";
-
-                return html;
+                else if (trimmedPart.StartsWith("Official link:", System.StringComparison.OrdinalIgnoreCase) ||
+                         trimmedPart.StartsWith("Official Link:", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    int colonIndex = trimmedPart.IndexOf(':');
+                    string linkContent = colonIndex >= 0 ? trimmedPart.Substring(colonIndex + 1).Trim() : trimmedPart;
+                    html += "<div class='link-item'><strong>Official Link:</strong> " + linkContent + "</div>";
+                }
+                else
+                {
+                    html += "<div class='info-item'>• " + trimmedPart + "</div>";
+                }
             }
 
-            return text;
+            html += "</div>";
+            return html;
         }
     }
 }

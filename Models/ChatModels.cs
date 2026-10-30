@@ -8,7 +8,6 @@ namespace JJMModel.Models
         public string Message { get; set; }
     }
 
-
     public class JJMInfo
     {
         [LoadColumn(0)] public string User { get; set; }
